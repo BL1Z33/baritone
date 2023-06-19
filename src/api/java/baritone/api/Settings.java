@@ -29,6 +29,10 @@ import net.minecraft.util.math.Vec3i;
 import net.minecraft.util.text.ITextComponent;
 
 import java.awt.*;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -720,6 +724,18 @@ public final class Settings {
     public final Setting<Boolean> freeLook = new Setting<>(true);
 
     /**
+     * Break and place blocks without having to force the client-sided rotations. Having this setting enabled implies
+     * {@link #freeLook}.
+     */
+    public final Setting<Boolean> blockFreeLook = new Setting<>(false);
+
+    /**
+     * When true, the player will remain with its existing look direction as often as possible.
+     * Although, in some cases this can get it stuck, hence this setting to disable that behavior.
+     */
+    public final Setting<Boolean> remainWithExistingLookDirection = new Setting<>(true);
+
+    /**
      * Will cause some minor behavioral differences to ensure that Baritone works on anticheats.
      * <p>
      * At the moment this will silently set the player's rotations when using freeLook so you're not sprinting in
@@ -1154,6 +1170,7 @@ public final class Settings {
      * via {@link Consumer#andThen(Consumer)} or it can completely be overriden via setting
      * {@link Setting#value};
      */
+    @JavaOnly
     public final Setting<Consumer<ITextComponent>> logger = new Setting<>(msg -> Minecraft.getMinecraft().ingameGUI.getChatGUI().printChatMessage(msg));
 
     /**
@@ -1161,6 +1178,7 @@ public final class Settings {
      * via {@link Consumer#andThen(Consumer)} or it can completely be overriden via setting
      * {@link Setting#value};
      */
+    @JavaOnly
     public final Setting<BiConsumer<String, Boolean>> notifier = new Setting<>(NotificationHelper::notify);
 
     /**
@@ -1168,6 +1186,7 @@ public final class Settings {
      * via {@link Consumer#andThen(Consumer)} or it can completely be overriden via setting
      * {@link Setting#value};
      */
+    @JavaOnly
     public final Setting<BiConsumer<ITextComponent, ITextComponent>> toaster = new Setting<>(BaritoneToast::addOrUpdate);
 
     /**
@@ -1312,6 +1331,7 @@ public final class Settings {
         public T value;
         public final T defaultValue;
         private String name;
+        private boolean javaOnly;
 
         @SuppressWarnings("unchecked")
         private Setting(T value) {
@@ -1320,6 +1340,7 @@ public final class Settings {
             }
             this.value = value;
             this.defaultValue = value;
+            this.javaOnly = false;
         }
 
         /**
@@ -1356,7 +1377,24 @@ public final class Settings {
         public final Type getType() {
             return settingTypes.get(this);
         }
+
+        /**
+         * This should always be the same as whether the setting can be parsed from or serialized to a string; in other
+         * words, the only way to modify it is by writing to {@link #value} programatically.
+         *
+         * @return {@code true} if the setting can not be set or read by the user
+         */
+        public boolean isJavaOnly() {
+            return javaOnly;
+        }
     }
+
+    /**
+     * Marks a {@link Setting} field as being {@link Setting#isJavaOnly() Java-only}
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.FIELD)
+    private @interface JavaOnly {}
 
     // here be dragons
 
@@ -1373,6 +1411,7 @@ public final class Settings {
                     Setting<?> setting = (Setting<?>) field.get(this);
                     String name = field.getName();
                     setting.name = name;
+                    setting.javaOnly = field.isAnnotationPresent(JavaOnly.class);
                     name = name.toLowerCase();
                     if (tmpByName.containsKey(name)) {
                         throw new IllegalStateException("Duplicate setting name");

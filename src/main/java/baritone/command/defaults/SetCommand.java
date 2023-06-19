@@ -22,12 +22,14 @@ import baritone.api.IBaritone;
 import baritone.api.Settings;
 import baritone.api.command.Command;
 import baritone.api.command.argument.IArgConsumer;
+import baritone.api.command.datatypes.RelativeFile;
 import baritone.api.command.exception.CommandException;
 import baritone.api.command.exception.CommandInvalidStateException;
 import baritone.api.command.exception.CommandInvalidTypeException;
 import baritone.api.command.helpers.Paginator;
 import baritone.api.command.helpers.TabCompleteHelper;
 import baritone.api.utils.SettingsUtil;
+import net.minecraft.client.Minecraft;
 import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextFormatting;
@@ -77,7 +79,7 @@ public class SetCommand extends Command {
             args.requireMax(1);
             List<? extends Settings.Setting> toPaginate =
                     (viewModified ? SettingsUtil.modifiedSettings(Baritone.settings()) : Baritone.settings().allSettings).stream()
-                            .filter(s -> !javaOnlySetting(s))
+                            .filter(s -> !s.isJavaOnly())
                             .filter(s -> s.getName().toLowerCase(Locale.US).contains(search.toLowerCase(Locale.US)))
                             .sorted((s1, s2) -> String.CASE_INSENSITIVE_ORDER.compare(s1.getName(), s2.getName()))
                             .collect(Collectors.toList());
@@ -141,7 +143,7 @@ public class SetCommand extends Command {
         if (setting == null) {
             throw new CommandInvalidTypeException(args.consumed(), "a valid setting");
         }
-        if (javaOnlySetting(setting)) {
+        if (setting.isJavaOnly()) {
             // ideally it would act as if the setting didn't exist
             // but users will see it in Settings.java or its javadoc
             // so at some point we have to tell them or they will see it as a bug
@@ -221,6 +223,9 @@ public class SetCommand extends Command {
                             .addToggleableSettings()
                             .filterPrefix(args.getString())
                             .stream();
+                } else if (Arrays.asList("ld", "load").contains(arg.toLowerCase(Locale.US))) {
+                    // settings always use the directory of the main Minecraft instance
+                    return RelativeFile.tabComplete(args, Minecraft.getMinecraft().gameDir.toPath().resolve("baritone").toFile());
                 }
                 Settings.Setting setting = Baritone.settings().byLowerName.get(arg.toLowerCase(Locale.US));
                 if (setting != null) {
